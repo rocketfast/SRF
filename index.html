@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SRF Turn Calculator</title>
+  <link rel="manifest" href="manifest.json" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="SRF Calculator" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 16px;
+      margin: 0;
+      background: #fafafa;
+    }
+    h3 {
+      margin-top: 0;
+    }
+    label {
+      display: block;
+      margin-top: 12px;
+      font-weight: bold;
+    }
+    textarea, input {
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 4px;
+      padding: 8px;
+      font-size: 16px; /* better for Android */
+    }
+    textarea {
+      min-height: 160px;
+    }
+    button {
+      margin-top: 14px;
+      padding: 10px 14px;
+      font-size: 16px;
+      width: 100%;
+    }
+    .btn-secondary {
+      background: #e0e0e0;
+      border: 1px solid #bbb;
+    }
+    .result {
+      margin-top: 16px;
+      padding: 12px;
+      background: #ffffff;
+      border: 1px solid #ccc;
+      min-height: 80px;
+      font-size: 15px;
+    }
+  </style>
+</head>
+<body>
+
+<h3>SRF Turn Calculator</h3>
+
+<label>SRF Samples (kHz)</label>
+<textarea id="srfInput" placeholder="Example: 135.31 135.13 134.51 (min 3, max 36)"></textarea>
+
+<label>SRF Nominal (kHz)</label>
+<input type="number" step="any" id="nominal" />
+
+<label>Tolerance (kHz)</label>
+<input type="number" step="any" id="tol" />
+
+<label>Current Number of Turn</label>
+<input type="number" step="any" id="turn" />
+
+<button type="button" id="btnCalc">Calculate</button>
+<button type="button" class="btn-secondary" id="btnClear">Clear</button>
+
+<div class="result" id="result">Result will appear here</div>
+
+<script>
+  function computeAverage(arr) {
+    let sum = 0;
+    for (let i = 0; i < arr.length; i++) sum += arr[i];
+    return sum / arr.length;
+  }
+
+  // Sample standard deviation (n-1)
+  function computeStdevSample(arr, mean) {
+    let s = 0;
+    for (let i = 0; i < arr.length; i++) {
+      s += Math.pow(arr[i] - mean, 2);
+    }
+    return Math.sqrt(s / (arr.length - 1));
+  }
+
+  function doCalculate() {
+    let raw = document.getElementById("srfInput").value || "";
+    raw = raw.replace(/[\r\n]+/g, " ");
+    let parts = raw.split(/[\s,]+/);
+
+    let samples = [];
+    for (let i = 0; i < parts.length; i++) {
+      let num = parseFloat(parts[i]);
+      if (!isNaN(num)) samples.push(num);
+    }
+
+    if (samples.length < 3) {
+      alert("Please enter at least 3 SRF samples.");
+      return;
+    }
+    if (samples.length > 36) {
+      alert("Maximum 36 SRF samples allowed.");
+      return;
+    }
+
+    let nominal = parseFloat(document.getElementById("nominal").value);
+    let tol = parseFloat(document.getElementById("tol").value);
+    let turn = parseFloat(document.getElementById("turn").value);
+
+    if (isNaN(nominal) || isNaN(tol) || isNaN(turn)) {
+      alert("Please fill in Nominal, Tolerance and Current Turn.");
+      return;
+    }
+
+    let avg = computeAverage(samples);
+    let stdev = computeStdevSample(samples, avg);
+
+    let srfMax = nominal + tol;
+    let srfMin = nominal - tol;
+
+    let cpkText;
+    if (!isFinite(stdev) || stdev === 0) {
+      cpkText = "N/A";
+    } else {
+      let cpu = (srfMax - avg) / (3 * stdev);
+      let cpl = (avg - srfMin) / (3 * stdev);
+      let cpk = Math.min(cpu, cpl);
+      cpkText = isFinite(cpk) ? cpk.toFixed(2) : "N/A";
+    }
+
+    // SRF vs turn relationship
+    let newTurn = (avg * turn) / nominal;
+
+    let out = "";
+    out += `<b>Samples Used:</b> ${samples.length}<br>`;
+    out += `<b>Average (X̄):</b> ${avg.toFixed(2)} kHz<br>`;
+    out += `<b>Std Dev (n-1):</b> ${stdev.toFixed(2)}<br>`;
+    out += `<b>SRF Min / Max:</b> ${srfMin.toFixed(2)} / ${srfMax.toFixed(2)} kHz<br>`;
+    out += `<b>CPK:</b> ${cpkText}<br>`;
+    out += `<b>New Number of Turn:</b> ${newTurn.toFixed(0)}<br>`;
+
+    document.getElementById("result").innerHTML = out;
+  }
+
+  function doClear() {
+    document.getElementById("srfInput").value = "";
+    document.getElementById("nominal").value = "";
+    document.getElementById("tol").value = "";
+    document.getElementById("turn").value = "";
+    document.getElementById("result").innerHTML = "Result will appear here";
+  }
+  
+  document.getElementById("btnCalc").addEventListener("click", doCalculate);
+  document.getElementById("btnClear").addEventListener("click", doClear);
+</script>
+
+<script>
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('sw.js');
+    });
+  }
+</script>
+
+</body>
+</html>
